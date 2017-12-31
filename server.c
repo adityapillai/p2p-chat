@@ -1,4 +1,5 @@
 #include "server.h"
+#include "utils.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/socket.h>
@@ -21,10 +22,16 @@ void addNewUser(user* newUser){
   }
   newUser->next = end->next;
   end->next = newUser;
-  end = newUser;
-  // write message to newUser about who to listen to
-  // write to front, new listener
-  // send newUser writing info, send end writing info
+  front = newUser;
+  // write message to newUser about who to connect to(address + port)
+  write(newUser->fd, "C ", 2);
+  write(newUser->fd, newUser->next->IP_ADDRESS, strlen(newUser->next->IP_ADDRESS) + 1);
+  write(newUser->fd, newUser->next->port, strlen(newUser->next->port) + 1);
+  // write to newUser who to listen to
+
+  // write to "end" new connection
+  write(end->fd, "C ", 2);
+  write(end->fd, newUser->IP_ADDRESS, strlen(newUser->IP_ADDRESS) + 1);
 }
 
 void removeUser(user* toRemove){
@@ -52,8 +59,6 @@ void removeUser(user* toRemove){
 //
 int main(int argc, char** argv){
   int serverFd = socket(AF_INET, SOCK_STREAM, 0);
-
-
   struct addrinfo hints;
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_INET;
@@ -89,9 +94,17 @@ int main(int argc, char** argv){
     int clientFd = accept(serverFd, (struct sockaddr*)&addr, &addrlen);
 
     char str[INET_ADDRSTRLEN];
-    inet_ntop( AF_INET, &addr, str, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &addr, str, INET_ADDRSTRLEN);
     user* newUser = calloc(sizeof(user));
     newUser->IP_ADDRESS = strdup(str);
+    newUser->fd = clientFd;
+    char buff[1024];
+    read_string_socket(clientFd, buff, 1024);
+    if(*buff == 'P' && buff[1] == ' '){
+      newUser->port = strdup(buff + 2);
+    } else{
+      // invalid message
+    }
     addNewUser(newUser);
   }
 
