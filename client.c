@@ -2,10 +2,16 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <string.h>
+#include <sys/types.h>
+#include <netdb.h>
+#include <assert.h>
+#include <sys/socket.h>
 #include "utils.h"
 
 
 char* serverAddress;
+int running = 1;
+int sendFd;
 
 void* chat_listener(void* args){
   char* port = (char*)args;
@@ -44,6 +50,8 @@ void* chat_listener(void* args){
   while(running){
     char buff[1024];
     read_string_socket(clientFd, buff, 1024);
+    // put writing fd here, for sender
+    write(sendFd, buff, strlen(buff) + 1);
     printf("%s\n",buff);
   }
 
@@ -58,7 +66,12 @@ int main(int argc, char** argv){
   if(argc < 5){
     return 1;
   }
-  serverAddress = argv[];
+  serverAddress = argv[2];
+
+  pthread_t listener;
+  pthread_create(&listener, NULL, chat_listener, argv[4]);
+  pthread_detach(listener);
+
 
   struct addrinfo hints;
   memset(&hints, 0, sizeof(hints));
@@ -66,7 +79,7 @@ int main(int argc, char** argv){
   hints.ai_socktype = SOCK_STREAM;
   struct addrinfo* res;
   int e;
-  if((e = getaddrinfo(argv[2], argv[3], &hints, &res)){
+  if((e = getaddrinfo(argv[2], argv[3], &hints, &res))){
     fprintf(stderr, "%s\n", gai_strerror(e));
     exit(1);
   }
@@ -76,9 +89,29 @@ int main(int argc, char** argv){
     perror(NULL);
     exit(1);
   }
+  freeaddrinfo(res);
+
   write(sockfd, "P ", 2);
-  // TODO listen on following port before writing messsage
-  write(sockfd, argv[3], strlen(argv[3]) + 1);
+  write(sockfd, argv[4], strlen(argv[4]) + 1);
+  // read ip address of who to connect to
+  char buff[1024];
+  read_string_socket(sockfd, buff, 1024);
+  assert(buff[0] == 'C');
+  assert(buff[1] == ' ');
+  // read port to connect on
+  read_string_socket(sockfd, buff + strlen(buff) + 1, 1024 - strlen(buff) - 1);
+  // connect to sender
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+  if((e = getaddrinfo(buff + 2, buff + strlen(buff) + 1, &hints, &res))){
+    fprintf(stderr, "%s\n", gai_strerror(e));
+    exit(1);
+  }
+  sendFd = socket(AF_INET, SOCK_STREAM, 0);
+  connect(sendFd, res->ai_addr, res->ai_addrlen);
+  freeaddrinfo(res);
+
 
   char* line = NULL;
   size_t n = 0;
@@ -89,6 +122,8 @@ int main(int argc, char** argv){
     }
     char message[strlen(argv[1]) + strlen(line) + 3];
     sprintf(message, "%s: %s", argv[1], line);
+    write(sendFd, message, strlen(message) + 1);
+    printf("%s\n",message);
     // write message to sender
   }
   free(line);

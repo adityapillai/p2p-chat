@@ -32,6 +32,7 @@ void addNewUser(user* newUser){
   // write to "end" new connection
   write(end->fd, "C ", 2);
   write(end->fd, newUser->IP_ADDRESS, strlen(newUser->IP_ADDRESS) + 1);
+  write(end->fd, newUser->port, strlen(newUser->port) + 1);
 }
 
 void removeUser(user* toRemove){
@@ -95,7 +96,7 @@ int main(int argc, char** argv){
 
     char str[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &addr, str, INET_ADDRSTRLEN);
-    user* newUser = calloc(sizeof(user));
+    user* newUser = calloc(sizeof(user), 1);
     newUser->IP_ADDRESS = strdup(str);
     newUser->fd = clientFd;
     char buff[1024];
