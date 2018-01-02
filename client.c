@@ -10,7 +10,10 @@
 
 char* serverAddress;
 int running = 1;
+int notReady = 1;
 int sendFd;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cv = PTHREAD_COND_INITIALIZER;
 
 void* chat_listener(void* args){
   int serverFd = start_tcp_server(args, 10);
@@ -21,6 +24,11 @@ void* chat_listener(void* args){
 
   while(running){
     char buff[1024];
+    pthread_mutex_lock(&lock);
+    while(notReady){
+      pthread_cond_wait(&cv, &lock);
+    }
+    pthread_mutex_unlock(&lock);
     read_string_socket(clientFd, buff, 1024);
     write(sendFd, buff, strlen(buff) + 1);
     printf("%s\n",buff);
@@ -28,6 +36,27 @@ void* chat_listener(void* args){
 
   return NULL;
 }
+
+void* server_listener(void* arg){
+  int serverFd = *(int*)arg;
+  while (running) {
+    char buff[1024];
+    read_string_socket(serverFd, buff, 1024);
+    pthread_mutex_lock(&lock);
+    notReady = 1;
+    assert(buff[0] == 'C');
+    assert(buff[1] == ' ');
+    read_string_socket(serverFd, buff + strlen(buff) + 1, 1024 - strlen(buff) - 1);
+    // connect to sender
+    sendFd = start_tcp_client(buff + 2, buff + strlen(buff) + 1);
+    notReady = 0;
+    pthread_mutex_unlock(&lock);
+    pthread_cond_signal(&cv);
+  }
+
+  return NULL;
+}
+
 
 // argv 1 username
 // argv 2 server ip
@@ -48,15 +77,17 @@ int main(int argc, char** argv){
 
   write(sockfd, "P ", 2);
   write(sockfd, argv[4], strlen(argv[4]) + 1);
+  pthread_t serverListener;
+  pthread_create(&serverListener, NULL, server_listener, &sockfd);
   // read ip address of who to connect to
-  char buff[1024];
+  /*char buff[1024];
   read_string_socket(sockfd, buff, 1024);
   assert(buff[0] == 'C');
   assert(buff[1] == ' ');
   // read port to connect on
   read_string_socket(sockfd, buff + strlen(buff) + 1, 1024 - strlen(buff) - 1);
   // connect to sender
-  sendFd = start_tcp_client(buff + 2, buff + strlen(buff) + 1);
+  sendFd = start_tcp_client(buff + 2, buff + strlen(buff) + 1);*/
 
 
   char* line = NULL;
