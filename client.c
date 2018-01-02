@@ -17,12 +17,11 @@ void* chat_listener(void* args){
   struct sockaddr_in* addr;
   socklen_t addrlen = sizeof(addr);
   int clientFd = accept(serverFd, (struct sockaddr*)&addr, &addrlen);
-  //TODO verfify connector with ip address
+  //TODO verify connector with ip address, changing listener fd
 
   while(running){
     char buff[1024];
     read_string_socket(clientFd, buff, 1024);
-    // put writing fd here, for sender
     write(sendFd, buff, strlen(buff) + 1);
     printf("%s\n",buff);
   }
@@ -44,24 +43,8 @@ int main(int argc, char** argv){
   pthread_create(&listener, NULL, chat_listener, argv[4]);
   pthread_detach(listener);
 
-  int sockfd = start_tcp_server(argv[2], argv[3]);
-  /*struct addrinfo hints;
-  memset(&hints, 0, sizeof(hints));
-  hints.ai_family = AF_INET;
-  hints.ai_socktype = SOCK_STREAM;
-  struct addrinfo* res;
-  int e;
-  if((e = getaddrinfo(argv[2], argv[3], &hints, &res))){
-    fprintf(stderr, "%s\n", gai_strerror(e));
-    exit(1);
-  }
-  int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+  int sockfd = start_tcp_client(argv[2], argv[3]);
 
-  if(connect(sockfd, res->ai_addr, res->ai_addrlen)){
-    perror(NULL);
-    exit(1);
-  }
-  freeaddrinfo(res);*/
 
   write(sockfd, "P ", 2);
   write(sockfd, argv[4], strlen(argv[4]) + 1);
@@ -74,16 +57,6 @@ int main(int argc, char** argv){
   read_string_socket(sockfd, buff + strlen(buff) + 1, 1024 - strlen(buff) - 1);
   // connect to sender
   sendFd = start_tcp_client(buff + 2, buff + strlen(buff) + 1);
-  /*memset(&hints, 0, sizeof(hints));
-  hints.ai_family = AF_INET;
-  hints.ai_socktype = SOCK_STREAM;
-  if((e = getaddrinfo(buff + 2, buff + strlen(buff) + 1, &hints, &res))){
-    fprintf(stderr, "%s\n", gai_strerror(e));
-    exit(1);
-  }
-  sendFd = socket(AF_INET, SOCK_STREAM, 0);
-  connect(sendFd, res->ai_addr, res->ai_addrlen);
-  freeaddrinfo(res);*/
 
 
   char* line = NULL;
@@ -100,15 +73,6 @@ int main(int argc, char** argv){
     // write message to sender
   }
   free(line);
-
-
-
-
-
-
-
-
-
 
 
   return 0;
