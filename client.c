@@ -3,7 +3,6 @@
 #include <pthread.h>
 #include <string.h>
 #include <sys/types.h>
-#include <netdb.h>
 #include <assert.h>
 #include <sys/socket.h>
 #include "utils.h"
@@ -14,34 +13,7 @@ int running = 1;
 int sendFd;
 
 void* chat_listener(void* args){
-  char* port = (char*)args;
-  int serverFd = socket(AF_INET, SOCK_STREAM, 0);
-  struct addrinfo hints;
-  memset(&hints, 0, sizeof(hints));
-  hints.ai_family = AF_INET;
-  hints.ai_flags = AI_PASSIVE;
-  struct addrinfo* result;
-  int e = getaddrinfo(NULL, port, &hints, &result);
-  if(e == -1){
-    fprintf(stderr, "%s\n", gai_strerror(e));
-    exit(1);
-  }
-
-  int opt = 1;
-  if(setsockopt(serverFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))){
-    perror(NULL);
-    exit(1);
-  }
-
-  if(bind(serverFd, result->ai_addr, result->ai_addrlen) != 0){
-    perror(NULL);
-    exit(1);
-  }
-  freeaddrinfo(result);
-  if(listen(serverFd, 10)){
-    perror(NULL);
-    exit(1);
-  }
+  int serverFd = start_tcp_server(args, 10);
   struct sockaddr_in* addr;
   socklen_t addrlen = sizeof(addr);
   int clientFd = accept(serverFd, (struct sockaddr*)&addr, &addrlen);
@@ -72,8 +44,8 @@ int main(int argc, char** argv){
   pthread_create(&listener, NULL, chat_listener, argv[4]);
   pthread_detach(listener);
 
-
-  struct addrinfo hints;
+  int sockfd = start_tcp_server(argv[2], argv[3]);
+  /*struct addrinfo hints;
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
@@ -89,7 +61,7 @@ int main(int argc, char** argv){
     perror(NULL);
     exit(1);
   }
-  freeaddrinfo(res);
+  freeaddrinfo(res);*/
 
   write(sockfd, "P ", 2);
   write(sockfd, argv[4], strlen(argv[4]) + 1);
@@ -101,7 +73,8 @@ int main(int argc, char** argv){
   // read port to connect on
   read_string_socket(sockfd, buff + strlen(buff) + 1, 1024 - strlen(buff) - 1);
   // connect to sender
-  memset(&hints, 0, sizeof(hints));
+  sendFd = start_tcp_client(buff + 2, buff + strlen(buff) + 1);
+  /*memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
   if((e = getaddrinfo(buff + 2, buff + strlen(buff) + 1, &hints, &res))){
@@ -110,7 +83,7 @@ int main(int argc, char** argv){
   }
   sendFd = socket(AF_INET, SOCK_STREAM, 0);
   connect(sendFd, res->ai_addr, res->ai_addrlen);
-  freeaddrinfo(res);
+  freeaddrinfo(res);*/
 
 
   char* line = NULL;
