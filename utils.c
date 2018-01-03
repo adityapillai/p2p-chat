@@ -45,6 +45,7 @@ int start_tcp_server(char* port, int backlog){
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_INET;
   hints.ai_flags = AI_PASSIVE;
+  hints.ai_socktype = SOCK_STREAM;
   struct addrinfo* result;
   int e = getaddrinfo(NULL, port, &hints, &result);
   if(e == -1){

@@ -5,6 +5,8 @@
 #include <sys/socket.h>
 #include <string.h>
 #include <sys/types.h>
+#include <unistd.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 
 
@@ -27,12 +29,16 @@ void addNewUser(user* newUser){
   write(newUser->fd, "C ", 2);
   write(newUser->fd, newUser->next->IP_ADDRESS, strlen(newUser->next->IP_ADDRESS) + 1);
   write(newUser->fd, newUser->next->port, strlen(newUser->next->port) + 1);
+
   // write to newUser who to listen to
+  write(newUser->next->fd, "A ", 3);
 
   // write to "end" new connection
   write(end->fd, "C ", 2);
   write(end->fd, newUser->IP_ADDRESS, strlen(newUser->IP_ADDRESS) + 1);
   write(end->fd, newUser->port, strlen(newUser->port) + 1);
+
+  write(newUser->fd, "A ", 3);
 }
 
 void removeUser(user* toRemove){
@@ -62,12 +68,12 @@ int main(int argc, char** argv){
   int serverFd = start_tcp_server(argv[1], 10);
 
   while(running){
-    struct sockaddr_in* addr;
+    struct sockaddr_in addr;
     socklen_t addrlen = sizeof(addr);
-    int clientFd = accept(serverFd, (struct sockaddr*)addr, &addrlen);
+    int clientFd = accept(serverFd, (struct sockaddr*)&addr, &addrlen);
 
     char str[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &(addr->sin_addr), str, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &(addr.sin_addr), str, INET_ADDRSTRLEN);
     user* newUser = calloc(sizeof(user), 1);
     newUser->IP_ADDRESS = strdup(str);
     newUser->fd = clientFd;
@@ -75,10 +81,10 @@ int main(int argc, char** argv){
     read_string_socket(clientFd, buff, 1024);
     if(*buff == 'P' && buff[1] == ' '){
       newUser->port = strdup(buff + 2);
+      addNewUser(newUser);
     } else{
       // invalid message
     }
-    addNewUser(newUser);
   }
 
   return 0;
