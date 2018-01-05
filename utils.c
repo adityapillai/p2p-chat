@@ -4,17 +4,27 @@
 #include <string.h>
 #include <stdio.h>
 #include <sys/socket.h>
+#include <errno.h>
 #include <netdb.h>
 #include "utils.h"
 
-void read_string_socket(int fd, char* buff, size_t maxBytes){
+ssize_t read_string_socket(int fd, char* buff, size_t maxBytes){
   size_t bytesRead = 0;
   char c = 1;
   while(bytesRead < maxBytes && c){
     // assuming read always works for now
-    read(fd, &c, 1);
+    ssize_t res = read(fd, &c, 1);
+    if(res == -1){
+      if(errno == EINTR){
+        continue;
+      }
+      return -1;
+    } else if(!res){
+      break;
+    }
     buff[bytesRead++] = c;
   }
+  return bytesRead;
 }
 
 int start_tcp_client(char* ip, char* port){
@@ -29,6 +39,10 @@ int start_tcp_client(char* ip, char* port){
     exit(1);
   }
   int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+  if(sockfd == -1){
+    perror(NULL);
+    exit(1);
+  }
 
   if(connect(sockfd, res->ai_addr, res->ai_addrlen)){
     perror(NULL);

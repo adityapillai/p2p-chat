@@ -12,9 +12,9 @@
 
 
 char* serverAddress;
-int running = 1;
-int notReady = 1;
-int acceptNewConnection = 0;
+volatile int running = 1;
+volatile int notReady = 1;
+volatile int acceptNewConnection = 0;
 int sendFd;
 int firstRun = 1;
 GAsyncQueue* queue;
@@ -39,8 +39,10 @@ void* chat_listener(void* args){
     } else{
       pthread_mutex_unlock(&lock);
     }
+
     read_string_socket(clientFd, buff, 1024);
-    g_async_queue_push(queue, strdup(buff));
+    if(strlen(buff))
+      g_async_queue_push(queue, strdup(buff));
   }
 
   return NULL;
@@ -56,6 +58,10 @@ void* server_listener(void* arg){
       notReady = 1;
       pthread_mutex_unlock(&lock);
       read_string_socket(serverFd, buff + strlen(buff) + 1, 1024 - strlen(buff) - 1);
+      if(sendFd){
+        shutdown(sendFd, SHUT_RDWR);
+        close(sendFd);
+      }
       sendFd = start_tcp_client(buff + 2, buff + strlen(buff) + 1);
       notReady = 0;
       pthread_cond_signal(&cv);
