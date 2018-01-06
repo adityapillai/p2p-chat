@@ -27,6 +27,24 @@ ssize_t read_string_socket(int fd, char* buff, size_t maxBytes){
   return bytesRead;
 }
 
+ssize_t write_all_socket(int fd, char* buff, size_t count){
+  size_t bytesWritten = 0;
+  while(bytesWritten < count){
+    ssize_t res = write(fd, buff + bytesWritten, count - bytesWritten);
+    if(res == -1){
+      if(errno == EINTR){
+        continue;
+      }
+      return -1;
+    } else if(!res){
+      break;
+    }
+    bytesWritten += res;
+  }
+  return bytesWritten;
+}
+
+
 int start_tcp_client(char* ip, char* port){
   struct addrinfo hints;
   memset(&hints, 0, sizeof(hints));

@@ -25,20 +25,20 @@ void addNewUser(user* newUser){
   newUser->next = end->next;
   end->next = newUser;
   front = newUser;
-  // write message to newUser about who to connect to(address + port)
-  write(newUser->next->fd, "A ", 3);
-  write(newUser->fd, "C ", 2);
-  write(newUser->fd, newUser->next->IP_ADDRESS, strlen(newUser->next->IP_ADDRESS) + 1);
-  write(newUser->fd, newUser->next->port, strlen(newUser->next->port) + 1);
+  // TODO wait for for receving connection to cofirm it is ready to accept before sending its address out
+  write_all_socket(newUser->next->fd, "A ", 3);
+  write_all_socket(newUser->fd, "C ", 2);
+  write_all_socket(newUser->fd, newUser->next->IP_ADDRESS, strlen(newUser->next->IP_ADDRESS) + 1);
+  write_all_socket(newUser->fd, newUser->next->port, strlen(newUser->next->port) + 1);
 
   // write to newUser who to listen to
 
 
   // write to "end" new connection
-  write(newUser->fd, "A ", 3);
-  write(end->fd, "C ", 2);
-  write(end->fd, newUser->IP_ADDRESS, strlen(newUser->IP_ADDRESS) + 1);
-  write(end->fd, newUser->port, strlen(newUser->port) + 1);
+  write_all_socket(newUser->fd, "A ", 3);
+  write_all_socket(end->fd, "C ", 2);
+  write_all_socket(end->fd, newUser->IP_ADDRESS, strlen(newUser->IP_ADDRESS) + 1);
+  write_all_socket(end->fd, newUser->port, strlen(newUser->port) + 1);
 
 }
 

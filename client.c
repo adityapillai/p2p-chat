@@ -87,7 +87,7 @@ void* chat_writer(void* data){
       pthread_cond_wait(&cv, &lock);
     }
     pthread_mutex_unlock(&lock);
-    write(sendFd, message, strlen(message) + 1);
+    write_all_socket(sendFd, message, strlen(message) + 1);
     printf("%s\n",message);
   }
   return NULL;
@@ -112,8 +112,8 @@ int main(int argc, char** argv){
   int sockfd = start_tcp_client(argv[2], argv[3]);
 
 
-  write(sockfd, "P ", 2);
-  write(sockfd, argv[4], strlen(argv[4]) + 1);
+  write_all_socket(sockfd, "P ", 2);
+  write_all_socket(sockfd, argv[4], strlen(argv[4]) + 1);
   //pthread_t serverListener;
   pthread_create(threads + 1, NULL, server_listener, &sockfd);
   pthread_create(threads + 2, NULL, chat_writer, NULL);
