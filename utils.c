@@ -18,14 +18,24 @@ ssize_t read_string_socket(int fd, char* buff, size_t maxBytes){
       if(errno == EINTR){
         continue;
       }
-      return -1;
+      return 0;
     } else if(!res){
       break;
     }
     buff[bytesRead++] = c;
   }
-  return bytesRead;
+  return buff[bytesRead - 1] ==  0;
 }
+
+void destroyUser(user* user){
+  if(!user){
+    return;
+  }
+  free(user->IP_ADDRESS);
+  free(user->port);
+  free(user->username);
+}
+
 
 ssize_t write_all_socket(int fd, char* buff, size_t count){
   size_t bytesWritten = 0;
@@ -35,14 +45,50 @@ ssize_t write_all_socket(int fd, char* buff, size_t count){
       if(errno == EINTR){
         continue;
       }
-      return -1;
+      return 0;
     } else if(!res){
       break;
     }
     bytesWritten += res;
   }
-  return bytesWritten;
+  return bytesWritten == count ? bytesWritten : 0;
 }
+
+int send_user_network(int fd, user* user){
+  return
+  write_all_socket(fd, "U\n", 3) &&
+  write_all_socket(fd, user->username, strlen(user->username) + 1) &&
+  write_all_socket(fd, user->IP_ADDRESS, strlen(user->IP_ADDRESS) + 1) &&
+  write_all_socket(fd, user->port, strlen(user->port) + 1) &&
+  write_all_socket(fd, "\n", 1);
+}
+
+int receive_user_network(int fd, user* user){
+  char mode[3];
+  if(!read_string_socket(fd, mode, 3) || strcmp("U\n", mode)){
+    return 0;
+  }
+  char username[51];
+  char IP_ADDRESS[INET_ADDRSTRLEN];
+  char port[6];
+  char end[2];
+  if(!read_string_socket(fd, username, sizeof(username))  ||
+     !read_string_socket(fd, IP_ADDRESS, INET_ADDRSTRLEN) ||
+     !read_string_socket(fd, port, sizeof(port))          ||
+     !read_string_socket(fd, end, sizeof(end))){
+       return 0;
+  }
+  if(strcmp(end, "\n")){
+    return 0;
+  }
+
+  user->username = strdup(username);
+  user->IP_ADDRESS = strdup(IP_ADDRESS);
+  user->port = strdup(port);
+  return 1;
+}
+
+
 
 
 int start_tcp_client(char* ip, char* port){

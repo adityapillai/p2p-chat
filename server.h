@@ -1,7 +1,7 @@
-typedef struct user{
-  char* IP_ADDRESS;
-  char* username;
-  char* port;
-  struct user* next;
+#include "utils.h"
+
+typedef struct user_node{
+  struct user* user;
+  struct user_node* next;
   int fd;
-} user;
+} user_node;
