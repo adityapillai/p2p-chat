@@ -44,7 +44,7 @@ void* chat_listener(void* args){
     }
 
     read_string_socket(clientFd, buff, 1024);
-    if(strlen(buff) && strstr(buff, sendUser->username) != buff)
+    if(strlen(buff))
       g_async_queue_push(queue, strdup(buff));
   }
 
@@ -54,16 +54,15 @@ void* chat_listener(void* args){
 void* server_listener(void* arg){
   int serverFd = *(int*)arg;
   while (running) {
-    char buff[1024];
-    read_string_socket(serverFd, buff, 1024);
+    char buff[3];
+    read_string_socket(serverFd, buff, sizeof(buff));
     pthread_mutex_lock(&lock);
-    if(buff[0] == 'C' && buff[1] == ' '){
+    if(!strcmp(buff, "C ")){
       notReady = 1;
       pthread_mutex_unlock(&lock);
-      //read_string_socket(serverFd, buff + strlen(buff) + 1, 1024 - strlen(buff) - 1);
       destroyUser(sendUser);
       sendUser = malloc(sizeof(user));
-      receive_user_network(serverFd, &sendUser);
+      receive_user_network(serverFd, sendUser);
       if(sendFd){
         shutdown(sendFd, SHUT_RDWR);
         close(sendFd);
@@ -71,7 +70,7 @@ void* server_listener(void* arg){
       sendFd = start_tcp_client(sendUser->IP_ADDRESS, sendUser->port);
       notReady = 0;
       pthread_cond_signal(&cv);
-    } else if(buff[0] == 'A' && buff[1] == ' '){
+    } else if(!strcmp(buff, "A ")){
       if(!firstRun){
         acceptNewConnection = 1;
       } else{
@@ -93,7 +92,9 @@ void* chat_writer(void* data){
       pthread_cond_wait(&cv, &lock);
     }
     pthread_mutex_unlock(&lock);
-    write_all_socket(sendFd, message, strlen(message) + 1);
+    if(strstr(message, sendUser->username) != message){
+      write_all_socket(sendFd, message, strlen(message) + 1);
+    }
     printf("%s\n",message);
   }
   return NULL;

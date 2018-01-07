@@ -8,11 +8,11 @@
 #include <netdb.h>
 #include "utils.h"
 
-ssize_t read_string_socket(int fd, char* buff, size_t maxBytes){
+int read_string_socket(int fd, char* buff, size_t maxBytes){
   size_t bytesRead = 0;
   char c = 1;
   while(bytesRead < maxBytes && c){
-    // assuming read always works for now
+
     ssize_t res = read(fd, &c, 1);
     if(res == -1){
       if(errno == EINTR){
@@ -24,7 +24,7 @@ ssize_t read_string_socket(int fd, char* buff, size_t maxBytes){
     }
     buff[bytesRead++] = c;
   }
-  return buff[bytesRead - 1] ==  0;
+  return c == 0 ? bytesRead : 0;
 }
 
 void destroyUser(user* user){
@@ -34,10 +34,11 @@ void destroyUser(user* user){
   free(user->IP_ADDRESS);
   free(user->port);
   free(user->username);
+  free(user);
 }
 
 
-ssize_t write_all_socket(int fd, char* buff, size_t count){
+int write_all_socket(int fd, char* buff, size_t count){
   size_t bytesWritten = 0;
   while(bytesWritten < count){
     ssize_t res = write(fd, buff + bytesWritten, count - bytesWritten);
@@ -60,17 +61,17 @@ int send_user_network(int fd, user* user){
   write_all_socket(fd, user->username, strlen(user->username) + 1) &&
   write_all_socket(fd, user->IP_ADDRESS, strlen(user->IP_ADDRESS) + 1) &&
   write_all_socket(fd, user->port, strlen(user->port) + 1) &&
-  write_all_socket(fd, "\n", 1);
+  write_all_socket(fd, "\n", 2);
 }
 
 int receive_user_network(int fd, user* user){
   char mode[3];
-  if(!read_string_socket(fd, mode, 3) || strcmp("U\n", mode)){
+  if(!read_string_socket(fd, mode, sizeof(mode)) || strcmp("U\n", mode)){
     return 0;
   }
   char username[51];
   char IP_ADDRESS[INET_ADDRSTRLEN];
-  char port[6];
+  char port[8];
   char end[2];
   if(!read_string_socket(fd, username, sizeof(username))  ||
      !read_string_socket(fd, IP_ADDRESS, INET_ADDRSTRLEN) ||

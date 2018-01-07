@@ -29,7 +29,7 @@ void addNewUser(user_node* newUser){
   front = newUser;
   // TODO wait for for receving connection to cofirm it is ready to accept before sending its address out
   write_all_socket(newUser->next->fd, "A ", 3);
-  write_all_socket(newUser->fd, "C ", 2);
+  write_all_socket(newUser->fd, "C ", 3);
   /*write_all_socket(newUser->fd, newUser->next->IP_ADDRESS, strlen(newUser->next->IP_ADDRESS) + 1);
   write_all_socket(newUser->fd, newUser->next->port, strlen(newUser->next->port) + 1);*/
   send_user_network(newUser->fd, newUser->next->user);
@@ -39,16 +39,13 @@ void addNewUser(user_node* newUser){
 
   // write to "end" new connection
   write_all_socket(newUser->fd, "A ", 3);
-  write_all_socket(end->fd, "C ", 2);/*
-  write_all_socket(end->fd, newUser->IP_ADDRESS, strlen(newUser->IP_ADDRESS) + 1);
-  write_all_socket(end->fd, newUser->port, strlen(newUser->port) + 1);*/
+  write_all_socket(end->fd, "C ", 3);
   send_user_network(end->fd, newUser->user);
-
 }
 
-void removeUser(user* toRemove){
+void removeUser(user_node* toRemove){
   // find previous of param in CLL
-  user* prev = NULL;
+  user_node* prev = NULL;
   prev->next = toRemove->next;
 
   if(toRemove == front){
@@ -59,6 +56,7 @@ void removeUser(user* toRemove){
 
   shutdown(toRemove->fd, SHUT_RDWR);
   close(toRemove->fd);
+  destroyUser(toRemove->user);
   free(toRemove);
 
 
@@ -83,7 +81,7 @@ int main(int argc, char** argv){
     newUser->user = malloc(sizeof(user));
     newUser->user->IP_ADDRESS = strdup(str);
     newUser->fd = clientFd;
-    char buff[6];
+    char buff[8];
     char username[51];
     if(!read_string_socket(clientFd, buff, sizeof(buff)) ||
        !read_string_socket(clientFd, username, sizeof(username))){

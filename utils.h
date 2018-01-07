@@ -1,11 +1,14 @@
 #include <stddef.h>
 #include <unistd.h>
 
+#pragma once
+
 typedef struct user{
   char* IP_ADDRESS;
   char* username;
   char* port; // port that user is listening on
 } user;
+
 
 /**
   *Reads bytes from socket until null byte is read '\0' or when maxium number
@@ -16,9 +19,9 @@ typedef struct user{
   *   size_t: maximum number of bytes read
   * Return: number of bytes read or 0 if failed
   */
-ssize_t read_string_socket(int , void* , size_t);
+int read_string_socket(int , char* , size_t);
 
-ssize_t write_all_socket(int, void*, size_t);
+int write_all_socket(int, char*, size_t);
 
 int send_user_network(int, user* user);
 
