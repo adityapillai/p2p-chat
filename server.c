@@ -27,11 +27,9 @@ void addNewUser(user_node* newUser){
   newUser->next = end->next;
   end->next = newUser;
   front = newUser;
-  // TODO wait for for receving connection to cofirm it is ready to accept before sending its address out
+  // TODO wait for for receving connection to confirm it is ready to accept before sending its address out
   write_all_socket(newUser->next->fd, "A ", 3);
   write_all_socket(newUser->fd, "C ", 3);
-  /*write_all_socket(newUser->fd, newUser->next->IP_ADDRESS, strlen(newUser->next->IP_ADDRESS) + 1);
-  write_all_socket(newUser->fd, newUser->next->port, strlen(newUser->next->port) + 1);*/
   send_user_network(newUser->fd, newUser->next->user);
 
   // write to newUser who to listen to
