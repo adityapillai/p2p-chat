@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <errno.h>
 #include <glib.h>
 #include "utils.h"
 
@@ -18,7 +19,7 @@ volatile int write_not_ready = 1;
 pthread_barrier_t barrier;
 int sendFd = -1;
 
-
+char finished[1];
 user* sendUser;
 
 GAsyncQueue* queue;
@@ -44,7 +45,6 @@ void* chat_listener(void* args){
       clientFd = accept(serverFd, (struct sockaddr*)&addr, &addrlen);
       continue;
     }
-
     g_async_queue_push(queue, strdup(buff));
   }
 
@@ -62,7 +62,6 @@ void* server_listener(void* arg){
     if(!strcmp(buff, "C ")){
       pthread_mutex_lock(&lock);
       write_not_ready = 1;
-      pthread_mutex_unlock(&lock); // unlocking here, bc network read upcoming
       destroyUser(sendUser);
       sendUser = malloc(sizeof(user));
       receive_user_network(serverFd, sendUser);
@@ -71,10 +70,9 @@ void* server_listener(void* arg){
         close(sendFd);
       }
       sendFd = start_tcp_client(sendUser->IP_ADDRESS, sendUser->port);
-      pthread_mutex_lock(&lock);
       write_not_ready = 0;
       pthread_mutex_unlock(&lock);
-      pthread_cond_broadcast(&cv);
+      pthread_cond_signal(&cv);
     } else if(!strcmp(buff, "A ")){
       pthread_barrier_wait(&barrier);
     }
@@ -88,17 +86,20 @@ void* server_listener(void* arg){
 void* chat_writer(void* data){
   while(running){
     char* message = g_async_queue_pop(queue);
+    if(message == finished){
+      break;
+    }
 
+    pthread_mutex_lock(&lock);
     if(!sendUser || strstr(message, sendUser->username) != message){
       while(!write_all_socket(sendFd, message, strlen(message) + 1)){
-        pthread_mutex_lock(&lock);
         write_not_ready = 1;
         while(write_not_ready){
           pthread_cond_wait(&cv, &lock);
         }
-        pthread_mutex_unlock(&lock);
       }
     }
+    pthread_mutex_unlock(&lock);
     printf("%s\n",message);
   }
   return NULL;
@@ -144,6 +145,22 @@ int main(int argc, char** argv){
     g_async_queue_push(queue, strdup(message));
   }
   free(line);
+  g_async_queue_push(queue, finished);
+  // attemping to break a thrad out of barrier call if it is stuck
+  if(pthread_barrier_destroy(&barrier)){
+    if(errno == EBUSY){
+      pthread_barrier_wait(&barrier);
+    } else{
+      exit(1);
+    }
+    pthread_barrier_destroy(&barrier);
+  }
+  pthread_cond_destroy(&cv);
+  pthread_mutex_destroy(&lock);
+  size_t i;
+  for(i = 0; i < sizeof(threads) / sizeof(threads[0]); ++i){
+    pthread_join(threads[i], NULL);
+  }
 
 
   return 0;
