@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <signal.h>
 #include <errno.h>
 #include <glib.h>
 #include "utils.h"
@@ -33,7 +34,6 @@ void* chat_listener(void* args){
   int clientFd = -1;
   //TODO verify connector with ip address, changing listener fd
 
-
   while(running){
     char buff[1024];
     if(!read_string_socket(clientFd, buff, sizeof(buff))){
@@ -48,6 +48,10 @@ void* chat_listener(void* args){
     g_async_queue_push(queue, strdup(buff));
   }
 
+  shutdown(serverFd, SHUT_RDWR);
+  close(serverFd);
+  shutdown(clientFd, SHUT_RDWR);
+  close(clientFd);
   return NULL;
 }
 
@@ -78,8 +82,7 @@ void* server_listener(void* arg){
     }
 
   }
-  shutdown(serverFd, SHUT_RDWR);
-  close(serverFd);
+
   return NULL;
 }
 
@@ -105,6 +108,10 @@ void* chat_writer(void* data){
   return NULL;
 }
 
+void int_handler(int sig){
+  running = 0;
+  close(STDIN_FILENO);
+}
 
 // argv 1 username
 // argv 2 server ip
@@ -114,15 +121,14 @@ int main(int argc, char** argv){
   if(argc < 5){
     return 1;
   }
-  //serverAddress = argv[2];
   queue = g_async_queue_new_full(free);
   pthread_barrier_init(&barrier, NULL, 2);
+  signal(SIGINT, int_handler);
 
   pthread_t threads[3];
   pthread_create(threads, NULL, chat_listener, argv[4]);
-  //pthread_detach(listener);
 
-  int sockfd = start_tcp_client(argv[2], argv[3]); // server thread, will clean this up
+  int sockfd = start_tcp_client(argv[2], argv[3]);
 
 
   write_all_socket(sockfd, "P ", 2);
@@ -140,28 +146,24 @@ int main(int argc, char** argv){
     if(line[bytesRead - 1] == '\n'){
       line[bytesRead - 1] = 0;
     }
-    char message[strlen(argv[1]) + strlen(line) + 3];
+    char* message = malloc(strlen(argv[1]) + strlen(line) + 3);
     sprintf(message, "%s: %s", argv[1], line);
-    g_async_queue_push(queue, strdup(message));
+    g_async_queue_push(queue, message);
   }
+  shutdown(sockfd, SHUT_RDWR);
+  close(sockfd);
   free(line);
   g_async_queue_push(queue, finished);
-  // attemping to break a thrad out of barrier call if it is stuck
-  if(pthread_barrier_destroy(&barrier)){
-    if(errno == EBUSY){
-      pthread_barrier_wait(&barrier);
-    } else{
-      exit(1);
-    }
-    pthread_barrier_destroy(&barrier);
-  }
-  pthread_cond_destroy(&cv);
-  pthread_mutex_destroy(&lock);
+
   size_t i;
   for(i = 0; i < sizeof(threads) / sizeof(threads[0]); ++i){
+    pthread_cancel(threads[i]);
     pthread_join(threads[i], NULL);
   }
 
-
+  pthread_barrier_destroy(&barrier);
+  pthread_cond_destroy(&cv);
+  pthread_mutex_destroy(&lock);
+  g_async_queue_unref(queue);
   return 0;
 }
