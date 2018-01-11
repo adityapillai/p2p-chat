@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/epoll.h>
 #include <netdb.h>
 
 
@@ -60,6 +61,42 @@ void removeUser(user_node* toRemove){
 
 }
 
+void handleNewConnection(int pollFd, int serverFd){
+  struct sockaddr_in addr;
+  socklen_t addrlen = sizeof(addr);
+  int clientFd = accept(serverFd, (struct sockaddr*)&addr, &addrlen);
+
+  char str[INET_ADDRSTRLEN];
+  inet_ntop(AF_INET, &(addr.sin_addr), str, INET_ADDRSTRLEN);
+  user_node* newUser = malloc(sizeof(user_node));
+  newUser->user = malloc(sizeof(user));
+  newUser->user->IP_ADDRESS = strdup(str);
+  newUser->fd = clientFd;
+  char buff[8];
+  char username[51];
+  if(!read_string_socket(clientFd, buff, sizeof(buff)) ||
+     !read_string_socket(clientFd, username, sizeof(username))){
+       shutdown(clientFd, SHUT_RDWR);
+       close(clientFd);
+       return;
+  }
+  if(*buff == 'P' && buff[1] == ' ' && *username == 'U' && username[1] == ' '){
+    newUser->user->port = strdup(buff + 2);
+    newUser->user->username = strdup(username + 2);
+    addNewUser(newUser);
+  } else{
+    shutdown(clientFd, SHUT_RDWR);
+    close(clientFd);
+  }
+  struct epoll_event newEvent;
+  newEvent.data.ptr = newUser;
+  newEvent.events = EPOLLIN | EPOLLET;
+
+  if(epoll_ctl(pollFd, EPOLL_CTL_ADD, clientFd, &newEvent) == -1){
+    exit(1);
+  }
+}
+
 
 
 
@@ -68,34 +105,33 @@ void removeUser(user_node* toRemove){
 int main(int argc, char** argv){
   int serverFd = start_tcp_server(argv[1], 10);
 
-  while(running){
-    struct sockaddr_in addr;
-    socklen_t addrlen = sizeof(addr);
-    int clientFd = accept(serverFd, (struct sockaddr*)&addr, &addrlen);
-
-    char str[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &(addr.sin_addr), str, INET_ADDRSTRLEN);
-    user_node* newUser = malloc(sizeof(user_node));
-    newUser->user = malloc(sizeof(user));
-    newUser->user->IP_ADDRESS = strdup(str);
-    newUser->fd = clientFd;
-    char buff[8];
-    char username[51];
-    if(!read_string_socket(clientFd, buff, sizeof(buff)) ||
-       !read_string_socket(clientFd, username, sizeof(username))){
-         shutdown(clientFd, SHUT_RDWR);
-         close(clientFd);
-         continue;
-    }
-    if(*buff == 'P' && buff[1] == ' ' && *username == 'U' && username[1] == ' '){
-      newUser->user->port = strdup(buff + 2);
-      newUser->user->username = strdup(username + 2);
-      addNewUser(newUser);
-    } else{
-      shutdown(clientFd, SHUT_RDWR);
-      close(clientFd);
-    }
+  int epollFd = epoll_create(1);
+  if(epollFd == -1){
+    perror(NULL);
+    exit(1);
   }
 
+  struct epoll_event event;
+  event.data.fd = serverFd;
+  event.events = EPOLLIN | EPOLLET;
+
+  if(epoll_ctl(epollFd, EPOLL_CTL_ADD, serverFd, &event)){
+    perror(NULL);
+    exit(1);
+  }
+
+  while(running){
+    struct epoll_event newEvent;
+    if(epoll_wait(epollFd, &newEvent, 1, -1) > 0){
+      if(serverFd == newEvent.data.fd){
+        // handle new connection here
+        handleNewConnection(epollFd, serverFd);
+      } else{
+
+      }
+
+    }
+  }
+  
   return 0;
 }
