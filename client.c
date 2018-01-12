@@ -12,8 +12,6 @@
 #include <glib.h>
 #include "utils.h"
 
-
-//char* serverAddress;
 volatile int running = 1;
 volatile int write_not_ready = 1;
 
@@ -28,7 +26,9 @@ pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cv = PTHREAD_COND_INITIALIZER;
 
 void* chat_listener(void* args){
-  int serverFd = start_tcp_server(args, 10);
+  char* port = (char*)args;
+  int serverFd = start_tcp_server(port, 10);
+  int chat_server = *(int*)(port + strlen(port) + 1);
   struct sockaddr_in addr;
   socklen_t addrlen = sizeof(addr);
   int clientFd = -1;
@@ -40,6 +40,7 @@ void* chat_listener(void* args){
       if(clientFd > 0){
         shutdown(clientFd, SHUT_RDWR);
         close(clientFd);
+        write_all_socket(chat_server, "R", strlen("R") + 1);
       }
       pthread_barrier_wait(&barrier);
       clientFd = accept(serverFd, (struct sockaddr*)&addr, &addrlen);
@@ -123,12 +124,16 @@ int main(int argc, char** argv){
   }
   queue = g_async_queue_new_full(free);
   pthread_barrier_init(&barrier, NULL, 2);
-  signal(SIGINT, int_handler);
+  //signal(SIGINT, int_handler);
+  int sockfd = start_tcp_client(argv[2], argv[3]);
 
   pthread_t threads[3];
-  pthread_create(threads, NULL, chat_listener, argv[4]);
+  char chat_args[strlen(argv[4]) + 1 + sizeof(int)];
+  strcpy(chat_args, argv[4]);
+  memcpy(chat_args + strlen(argv[4]) + 1, &sockfd, sizeof(sockfd));
+  pthread_create(threads, NULL, chat_listener, chat_args);
 
-  int sockfd = start_tcp_client(argv[2], argv[3]);
+
 
 
   write_all_socket(sockfd, "P ", 2);
@@ -157,7 +162,6 @@ int main(int argc, char** argv){
 
   size_t i;
   for(i = 0; i < sizeof(threads) / sizeof(threads[0]); ++i){
-    pthread_cancel(threads[i]);
     pthread_join(threads[i], NULL);
   }
 

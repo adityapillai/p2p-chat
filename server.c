@@ -15,6 +15,18 @@ volatile int running = 1;
 user_node* front;
 user_node* end;
 
+user_node* find_previous(user_node* node){
+  user_node* curr = front;
+  do{
+    if(curr->next == node){
+      return curr;
+    }
+    curr = curr->next;
+  } while(curr != front);
+  return NULL;
+}
+
+
 //TODO notify clients of listener changes
 void addNewUser(user_node* newUser){
   if(!front){
@@ -28,8 +40,19 @@ void addNewUser(user_node* newUser){
   newUser->next = end->next;
   end->next = newUser;
   front = newUser;
+  newUser->new_arrival = 0;
   // TODO wait for for receving connection to confirm it is ready to accept before sending its address out
   write_all_socket(newUser->next->fd, "A ", 3);
+  char readyBuff[2];
+  //fprintf(stderr, "waiting for %s\n",newUser->next->user->username);
+  if(!newUser->next->new_arrival){
+    if(!read_string_socket(newUser->next->fd, readyBuff, sizeof(readyBuff)) || strcmp("R", readyBuff)){
+      return;
+    }
+  } else{
+    newUser->next->new_arrival = 0;
+  }
+  //fprintf(stderr, "%s ready to accept\n",newUser->next->user->username);
   write_all_socket(newUser->fd, "C ", 3);
   send_user_network(newUser->fd, newUser->next->user);
 
@@ -38,13 +61,22 @@ void addNewUser(user_node* newUser){
 
   // write to "end" new connection
   write_all_socket(newUser->fd, "A ", 3);
+  /*fprintf(stderr, "wating for %s\n",newUser->user->username);
+  if(!newUser->new_arrival){
+    if(!read_string_socket(newUser->fd, readyBuff, sizeof(readyBuff)) || strcmp("R", readyBuff)){
+      return;
+    }
+  } else{
+    newUser->new_arrival = 0;
+  }*/
+  //fprintf(stderr, "%s read to accept\n",newUser->user->username);
   write_all_socket(end->fd, "C ", 3);
   send_user_network(end->fd, newUser->user);
 }
 
 void removeUser(user_node* toRemove){
   // find previous of param in CLL
-  user_node* prev = NULL;
+  user_node* prev = find_previous(toRemove);
   prev->next = toRemove->next;
 
   if(toRemove == front){
@@ -57,8 +89,15 @@ void removeUser(user_node* toRemove){
   close(toRemove->fd);
   destroyUser(toRemove->user);
   free(toRemove);
+  front->new_arrival = 1;
 
+  if(front == end){
+    return;
+  }
 
+  write_all_socket(prev->next->fd, "A ", strlen("A ") + 1);
+  write_all_socket(prev->fd, "C ", 3);
+  send_user_network(prev->fd, prev->next->user);
 }
 
 void handleNewConnection(int pollFd, int serverFd){
@@ -72,6 +111,7 @@ void handleNewConnection(int pollFd, int serverFd){
   newUser->user = malloc(sizeof(user));
   newUser->user->IP_ADDRESS = strdup(str);
   newUser->fd = clientFd;
+  newUser->new_arrival = 1;
   char buff[8];
   char username[51];
   if(!read_string_socket(clientFd, buff, sizeof(buff)) ||
@@ -95,6 +135,20 @@ void handleNewConnection(int pollFd, int serverFd){
   if(epoll_ctl(pollFd, EPOLL_CTL_ADD, clientFd, &newEvent) == -1){
     exit(1);
   }
+}
+
+void handleRequest(int pollFd, struct epoll_event* event){
+  user_node* curr = (user_node*)event->data.ptr;
+  if(curr->new_arrival){
+    return;
+  }
+  char buff[2];
+  if(!read_string_socket(curr->fd, buff, sizeof(buff)) || strcmp("R", buff)){
+    return;
+  }
+  user_node* prev = find_previous(curr);
+  epoll_ctl(pollFd, EPOLL_CTL_DEL, prev->fd, NULL);
+  removeUser(prev);
 }
 
 
@@ -124,14 +178,13 @@ int main(int argc, char** argv){
     struct epoll_event newEvent;
     if(epoll_wait(epollFd, &newEvent, 1, -1) > 0){
       if(serverFd == newEvent.data.fd){
-        // handle new connection here
         handleNewConnection(epollFd, serverFd);
       } else{
-
+        handleRequest(epollFd, &newEvent);
       }
 
     }
   }
-  
+
   return 0;
 }
