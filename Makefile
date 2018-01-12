@@ -1,13 +1,13 @@
 all: client server
-	
+
 client: client.c utils.c
 	gcc -pthread client.c utils.c `pkg-config --cflags --libs glib-2.0` -o client
 
 server: server.c utils.c
-	gcc -g server.c utils.c -o server
+	gcc server.c utils.c -o server
 
 debug: clean
-	gcc -pthread client.c utils.c `pkg-config --cflags --libs glib-2.0` -o client-debug
+	gcc -pthread -g client.c utils.c `pkg-config --cflags --libs glib-2.0` -o client-debug
 	gcc -g server.c utils.c -o server-debug
 
 clean:
