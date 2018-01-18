@@ -40,9 +40,11 @@ void* chat_listener(void* args){
       if(clientFd > 0){
         shutdown(clientFd, SHUT_RDWR);
         close(clientFd);
-        write_all_socket(chat_server, "R", strlen("R") + 1);
+        write_all_socket(chat_server, "F", strlen("F") + 1);
       }
+      //fprintf(stderr, "wrote ready message\n");
       pthread_barrier_wait(&barrier);
+      write_all_socket(chat_server, "R", strlen("R") + 1);
       clientFd = accept(serverFd, (struct sockaddr*)&addr, &addrlen);
       continue;
     }
@@ -69,11 +71,11 @@ void* server_listener(void* arg){
       write_not_ready = 1;
       destroyUser(sendUser);
       sendUser = malloc(sizeof(user));
-      receive_user_network(serverFd, sendUser);
       if(sendFd > 0){
         shutdown(sendFd, SHUT_RDWR);
         close(sendFd);
       }
+      receive_user_network(serverFd, sendUser);
       sendFd = start_tcp_client(sendUser->IP_ADDRESS, sendUser->port);
       write_not_ready = 0;
       pthread_mutex_unlock(&lock);
