@@ -37,6 +37,17 @@ void destroyUser(user* user){
   free(user);
 }
 
+int expect_string_socket(int fd, char* message){
+  char buff[strlen(message) + 1];
+  if(!read_string_socket(fd, buff, sizeof(buff))){
+    return -1;
+  }
+  if(strcmp(message, buff)){
+    return -2;
+  }
+  return 0;
+}
+
 
 int write_all_socket(int fd, char* buff, size_t count){
   size_t bytesWritten = 0;
