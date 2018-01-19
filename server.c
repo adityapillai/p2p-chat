@@ -35,47 +35,37 @@ void addNewUser(user_node* newUser){
     end = newUser;
     return;
   }
-  //user_node* newNode = malloc(sizeof(user_node));
-  //newNode->user = newUser;
+
   newUser->next = end->next;
   end->next = newUser;
   front = newUser;
-  newUser->new_arrival = 0;
-  // TODO wait for for receving connection to confirm it is ready to accept before sending its address out
 
-  write_all_socket(end->fd, "C ", 3);
-  write_all_socket(newUser->fd, "A ", 3);
+  //TODO seperate networking calls into seperate function
+  write_all_socket(end->fd, CONNECT, strlen(CONNECT) + 1);
+  write_all_socket(newUser->fd, ACCEPT, strlen(ACCEPT) + 1);
 
-char message[2];
-    if(!read_string_socket(newUser->fd, message, sizeof(message)) || strcmp("R", message)){
-      return;
-    }
-    //newUser->new_arrival = 0;
+
+  if(expect_string_socket(newUser->fd, READY)){
+    return;
+  }
 
   send_user_network(end->fd, newUser->user);
 
+  write_all_socket(newUser->fd, CONNECT, strlen(CONNECT) + 1);
+  write_all_socket(newUser->next->fd, ACCEPT, strlen(CONNECT) + 1);
 
-
-  write_all_socket(newUser->fd, "C ", 3);
-  write_all_socket(newUser->next->fd, "A ", 3);
-
+  char message[2];
   if(!read_string_socket(newUser->next->fd, message, sizeof(message))){
     return;
   }
-  if(!strcmp(message, "F")){
-    if(!read_string_socket(newUser->next->fd, message, sizeof(message)) || strcmp(message, "R"))
+  if(!strcmp(message, FAILIURE)){
+    if(!read_string_socket(newUser->next->fd, message, sizeof(message)) || strcmp(message, READY))
       return;
-  } else if(strcmp(message, "R")){
+  } else if(strcmp(message, READY)){
     return;
   }
 
-
   send_user_network(newUser->fd, newUser->next->user);
-
-  // write to newUser who to listen to
-
-
-  // write to "end" new connection
 }
 
 void removeUser(user_node* toRemove){
@@ -99,15 +89,13 @@ void removeUser(user_node* toRemove){
     return;
   }
 
-  // TODO may need to process ready message here too
-  write_all_socket(prev->fd, "C ", 3);
-  write_all_socket(prev->next->fd, "A ", strlen("A ") + 1);
+  write_all_socket(prev->fd, CONNECT, strlen(CONNECT) + 1);
+  write_all_socket(prev->next->fd, ACCEPT, strlen(ACCEPT) + 1);
 
-  char buff[2];
-  if(!read_string_socket(prev->next->fd, buff, sizeof(buff)) || buff[0] != 'R'){
+
+  if(expect_string_socket(prev->next->fd, READY)){
     return;
   }
-
   send_user_network(prev->fd, prev->next->user);
 }
 
@@ -122,9 +110,8 @@ void handleNewConnection(int pollFd, int serverFd){
   newUser->user = malloc(sizeof(user));
   newUser->user->IP_ADDRESS = strdup(str);
   newUser->fd = clientFd;
-  newUser->new_arrival = 1;
   char buff[8];
-  char username[51];
+  char username[MAX_USERNAME_LENGTH + 1];
   if(!read_string_socket(clientFd, buff, sizeof(buff)) ||
      !read_string_socket(clientFd, username, sizeof(username))){
        shutdown(clientFd, SHUT_RDWR);
@@ -150,14 +137,10 @@ void handleNewConnection(int pollFd, int serverFd){
 
 void handleRequest(int pollFd, struct epoll_event* event){
   user_node* curr = (user_node*)event->data.ptr;
-  /*if(curr->new_arrival){
-    return;
-  }*/
-  char buff[2];
-  if(!read_string_socket(curr->fd, buff, sizeof(buff)) || strcmp("F", buff)){
+  if(expect_string_socket(curr->fd, FAILIURE)){
     return;
   }
-  //curr->new_arrival = 1;
+
   user_node* prev = find_previous(curr);
   epoll_ctl(pollFd, EPOLL_CTL_DEL, prev->fd, NULL);
   removeUser(prev);
@@ -167,7 +150,6 @@ void handleRequest(int pollFd, struct epoll_event* event){
 
 
 // argv[1] = listening port,
-//
 int main(int argc, char** argv){
   int serverFd = start_tcp_server(argv[1], 10);
 

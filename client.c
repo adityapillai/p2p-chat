@@ -40,11 +40,10 @@ void* chat_listener(void* args){
       if(clientFd > 0){
         shutdown(clientFd, SHUT_RDWR);
         close(clientFd);
-        write_all_socket(chat_server, "F", strlen("F") + 1);
+        write_all_socket(chat_server, FAILIURE, strlen(FAILIURE) + 1);
       }
-      //fprintf(stderr, "wrote ready message\n");
       pthread_barrier_wait(&barrier);
-      write_all_socket(chat_server, "R", strlen("R") + 1);
+      write_all_socket(chat_server, READY, strlen(READY) + 1);
       clientFd = accept(serverFd, (struct sockaddr*)&addr, &addrlen);
       continue;
     }
@@ -66,7 +65,7 @@ void* server_listener(void* arg){
       break;
     }
 
-    if(!strcmp(buff, "C ")){
+    if(!strcmp(buff, CONNECT)){
       pthread_mutex_lock(&lock);
       write_not_ready = 1;
       destroyUser(sendUser);
@@ -80,7 +79,7 @@ void* server_listener(void* arg){
       write_not_ready = 0;
       pthread_mutex_unlock(&lock);
       pthread_cond_signal(&cv);
-    } else if(!strcmp(buff, "A ")){
+    } else if(!strcmp(buff, ACCEPT)){
       pthread_barrier_wait(&barrier);
     }
 
